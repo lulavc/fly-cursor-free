@@ -69,7 +69,7 @@ tempmail临时邮箱 或 qq邮箱 任选一个
 
 ## 授权协议
 
-本项目采用 [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/) 协议进行许可。
+为防止滥用，本代码并未完全开源
 
 ---
 
