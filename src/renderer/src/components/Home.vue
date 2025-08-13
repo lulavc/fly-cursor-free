@@ -1,10 +1,10 @@
 <script setup>
-    import { ref, nextTick, provide, computed } from "vue";
+    import { ref, nextTick, provide, computed, watch } from "vue";
     import { onMounted, onUnmounted } from "vue";
     import { storeToRefs } from "pinia";
     import { useAppStore } from "../stores/app.js";
     // eslint-disable-next-line no-unused-vars
-    import { getUsage, getStripeProfile } from "../api/cursor_api.js";
+    import { getUsage, getStripeProfile, clearApiCache } from "../api/cursor_api.js";
     import AccountManagement from "./AccountManagement.vue";
     import UseAccountConfirmationDialog from "./UseAccountConfirmationDialog.vue";
     import Settings from "./Settings.vue";
@@ -14,41 +14,68 @@
     import { Refresh, CircleCheck, WarningFilled, Delete } from "@element-plus/icons-vue";
     import { ElMessage, ElMessageBox } from "element-plus";
     import { jwtDecode } from "jwt-decode";
+    
     const SUBSCRIBE_FREE_NAME = "free";
     const SUBSCRIBE_PRO_NAME = "free_trial";
 
     const appStore = useAppStore();
-    const { cursorInfo, appConfig, systemInfo, cursorAccountsInfo, appLicenseInfo, aboutNotice } =
-        storeToRefs(appStore);
+    const { 
+        cursorInfo, 
+        appConfig, 
+        systemInfo, 
+        cursorAccountsInfo, 
+        appLicenseInfo, 
+        aboutNotice,
+        isLoading,
+        error,
+        lastFetchTime
+    } = storeToRefs(appStore);
 
+    // Component state
     const activeName = ref("first");
     const accountManagementRef = ref(null);
-    let unsubscribeLog;
+    const settingsRef = ref(null);
+    const logScrollbarRef = ref(null);
+    
+    // Loading states
     const isRefreshLoading = ref(false);
-    let refreshIntervalId = null;
     const isInitLoading = ref(false);
+    const loadingAutoRegister = ref(false);
+    
+    // Dialog states
     const useAccountDialogVisible = ref(false);
     const settingsDialogVisible = ref(false);
     const backupSettingsDialogVisible = ref(false);
     const restoreBackupDialogVisible = ref(false);
+    
+    // Data states
     const accountToUse = ref(null);
     const isAdmin = ref(false);
     const loopCount = ref(1);
-    const settingsRef = ref(null);
     const logs = ref([]);
-    const logScrollbarRef = ref(null);
-
-    const loadingAutoRegister = ref(false);
     const isAutoRegistAndLogin = ref(false);
+    
+    // Auto-refresh interval
+    let refreshIntervalId = null;
+    let unsubscribeLog = null;
 
+    // Enhanced logging with better performance
     const addLog = async ({ level = "info", data }) => {
         const message = `[${new Date().toLocaleTimeString()}] ${data}`;
-        logs.value.push({ level, message });
+        logs.value.push({ level, message, timestamp: Date.now() });
+        
+        // Keep only last 400 logs for memory management
         if (logs.value.length > 400) {
-            logs.value.shift();
+            logs.value = logs.value.slice(-400);
         }
+        
         await nextTick();
-        if (logScrollbarRef.value) {
+        scrollToBottom();
+    };
+
+    // Optimized scroll function
+    const scrollToBottom = () => {
+        if (logScrollbarRef.value?.wrapRef) {
             const scrollWrapper = logScrollbarRef.value.wrapRef;
             if (scrollWrapper) {
                 logScrollbarRef.value.scrollTo({
@@ -59,34 +86,36 @@
         }
     };
 
-    // 将 addLog 方法通过 provide 暴露给后代组件使用
+    // Provide addLog to child components
     provide("addLog", addLog);
 
+    // Computed properties with better performance
     const accountInfoShow = computed(() => {
-        let info = { ...cursorAccountsInfo.value };
+        const info = { ...cursorAccountsInfo.value };
         info.membershipTypeShow = checkMembershipType(info);
-        console.log("membershipTypeShow :>> ", info.membershipTypeShow);
-
         info.accessTokenExpStatus = checkAccessTokenExpireTime(info.accessToken);
-
         return info;
     });
 
     const versionText = computed(() => {
-        // const name = appConfig.value.appName || "";
         const ver = appConfig.value.version || "";
         return `${ver}`.trim();
     });
 
     const signatureText = computed(() => appLicenseInfo.value?.signature || "");
 
+    // Enhanced admin rights check
     const checkAdminRights = async () => {
-        isAdmin.value = await window.api.checkAdminRights();
+        try {
+            isAdmin.value = await window.api.checkAdminRights();
+        } catch (error) {
+            console.error("Failed to check admin rights:", error);
+            isAdmin.value = false;
+        }
     };
 
-    onMounted(async () => {
-        // 监听来自主进程的日志
-        unsubscribeLog = window.api.onLog(handleLogFromMain);
+    // Enhanced initialization
+    const initializeApp = async () => {
         isInitLoading.value = true;
         try {
             await Promise.allSettled([
@@ -96,25 +125,79 @@
                 checkAdminRights(),
             ]);
         } catch (error) {
-            console.error("初始化路径失败", error);
+            console.error("初始化失败", error);
+            await addLog({ level: "error", data: `初始化失败: ${error.message}` });
         } finally {
             isInitLoading.value = false;
         }
         await refresh();
-    });
+    };
 
-    onUnmounted(() => {
-        // 组件卸载时取消监听
-        if (unsubscribeLog) {
-            unsubscribeLog();
-        }
-        if (refreshIntervalId) {
-            clearInterval(refreshIntervalId);
-        }
-    });
+    // Enhanced refresh function with better error handling
+    const refresh = async () => {
+        if (isRefreshLoading.value) return;
+        
+        isRefreshLoading.value = true;
+        const timeStart = Date.now();
+        
+        try {
+            await window.api.initAppConfig();
+            
+            // Use the new batch refresh method from store
+            await appStore.refreshAllData();
+            
+            if (!cursorAccountsInfo.value.accessToken || !cursorAccountsInfo.value.email) {
+                throw new Error("未登录");
+            }
 
+            // Enhanced subscription info update
+            await updateSubscriptionInfo();
+            
+            await addLog({ level: "info", data: "刷新页面信息成功" });
+            
+        } catch (error) {
+            console.error("刷新失败:", error);
+            await addLog({ level: "error", data: `刷新页面信息失败: ${error.message}` });
+        } finally {
+            // Update account in database
+            await window.api.accounts.createOrUpdateAccount(
+                JSON.parse(JSON.stringify(cursorAccountsInfo.value))
+            );
+
+            const timeEnd = Date.now();
+            const remainingTime = Math.max(0, 2000 - (timeEnd - timeStart));
+            
+            setTimeout(() => {
+                isRefreshLoading.value = false;
+            }, remainingTime);
+
+            // Clear API cache after refresh
+            clearApiCache();
+        }
+    };
+
+    // Separate function for subscription info update
+    const updateSubscriptionInfo = async () => {
+        try {
+            const stripeProfileResult = await getStripeProfile(cursorAccountsInfo.value.accessToken);
+            console.log("home stripeProfileResult :>> ", stripeProfileResult);
+            
+            appStore.setCursorAccountsInfo({
+                membershipType: stripeProfileResult.membershipType,
+                daysRemainingOnTrial: stripeProfileResult.daysRemainingOnTrial,
+            });
+            
+            await addLog({ level: "info", data: "更新订阅信息成功" });
+        } catch (error) {
+            console.error("更新订阅信息失败:", error);
+            await addLog({ level: "error", data: "更新订阅信息失败" });
+        }
+    };
+
+    // Enhanced log handling from main process
     const handleLogFromMain = async (log) => {
         const { level, data } = log;
+        
         switch (level) {
             case "info":
             case "success":
@@ -131,7 +214,6 @@
             case "account": {
                 const isAutoLoginFlow = appStore.isAutoLoginFlow;
                 if (isAutoLoginFlow) {
-                    // 自动登录，并重置机器码
                     await addLog({ level: "info", data: "正在使用新账号登录..." });
                     await window.api.resetCursorAccount({
                         ...data,
@@ -150,7 +232,7 @@
             }
             case "license-error": {
                 ElMessage.error(data);
-                addLog({ level: "error", data: data });
+                await addLog({ level: "error", data: data });
                 break;
             }
             case "box-tips": {
@@ -162,7 +244,7 @@
                 break;
             }
             case "log-tips": {
-                addLog({ level: "warning", data: data });
+                await addLog({ level: "warning", data: data });
                 break;
             }
             case "about-notice": {
@@ -174,8 +256,10 @@
         }
     };
 
-    const handleClick = (tab, event) => {
-        console.log(tab, event);
+    // Enhanced tab click handler
+    const handleClick = (tab) => {
+        console.log("Tab clicked:", tab.props.name);
+        
         if (tab.props.name === "second") {
             accountManagementRef.value?.fetchAccounts();
         }
@@ -184,103 +268,47 @@
         }
     };
 
-    const refresh = async () => {
-        if (isRefreshLoading.value) return;
-        await window.api.initAppConfig(); //初始化路径
-        isRefreshLoading.value = true;
-        const timeStart = Date.now();
-        try {
-            await Promise.allSettled([
-                appStore.fetchCursorInfo(),
-                appStore.fetchAppConfig(),
-                appStore.fetchSystemInfo(),
-            ]);
-            if (!cursorAccountsInfo.value.accessToken || !cursorAccountsInfo.value.email) {
-                throw new Error("未登录");
-            }
-
-            await getStripeProfile(cursorAccountsInfo.value.accessToken)
-                .then((stripeProfileResult) => {
-                    console.log("home stripeProfileResult :>> ", stripeProfileResult);
-                    appStore.setCursorAccountsInfo({
-                        membershipType: stripeProfileResult.membershipType,
-                        daysRemainingOnTrial: stripeProfileResult.daysRemainingOnTrial,
-                    });
-                    addLog({ level: "info", data: "更新订阅信息成功" });
-                })
-                .catch(() => {
-                    addLog({ level: "error", data: "更新订阅信息失败" });
-                });
-
-            // addLog({ level: "info", data: "刷新订阅信息成功" });
-            // let usageResult = await getUsage(accessToken);
-            // updateData.modelUsageUsed = usageResult.numRequestsTotal || 0;
-            // updateData.modelUsageTotal = usageResult.maxRequestUsage || 0;
-            // updateData.registerTimeStamp = new Date(usageResult.startOfMonth).getTime();
-        } catch (error) {
-            console.error(error);
-            addLog({ level: "error", data: "刷新页面信息失败" });
-            // ElMessage.error("刷新失败");
-            // ElMessage.error("刷新订阅信息失败");
-        } finally {
-            await window.api.accounts.createOrUpdateAccount(JSON.parse(JSON.stringify(cursorAccountsInfo.value)));
-
-            const timeEnd = Date.now();
-            setTimeout(
-                () => {
-                    isRefreshLoading.value = false;
-                },
-                2000 - ((timeEnd - timeStart) % 2000)
-            );
-            console.log("cursorInfo :>> ", cursorInfo.value);
-
-            if (refreshIntervalId) {
-                clearInterval(refreshIntervalId);
-            }
-            // refreshIntervalId = setInterval(refresh, 10 * 60 * 1000);
-
-            console.log("cursorAccountsInfo :>> ", appStore.cursorAccountsInfo);
-        }
-    };
-
+    // Enhanced account switching
     const showUseAccountDialog = (account) => {
         accountToUse.value = account;
         useAccountDialogVisible.value = true;
     };
 
-    // 切换账号
     const handleConfirmUseAccount = async (data) => {
         const account = Object.assign({}, accountToUse.value, data);
-
         console.log("准备使用账号 :>> ", account.email);
 
         try {
-            let result = await window.api.resetCursorAccount(JSON.parse(JSON.stringify(account)));
+            const result = await window.api.resetCursorAccount(JSON.parse(JSON.stringify(account)));
             useAccountDialogVisible.value = false;
+            
             if (result.success) {
                 ElMessage.success("切换账号成功");
+                await addLog({ level: "success", data: "切换账号成功" });
             } else {
                 ElMessage.error("切换账号失败");
+                await addLog({ level: "error", data: "切换账号失败" });
             }
 
             await refresh();
         } catch (error) {
-            console.error(error);
+            console.error("切换账号失败:", error);
             ElMessage.error("切换账号失败");
+            await addLog({ level: "error", data: `切换账号失败: ${error.message}` });
         }
     };
 
+    // Enhanced token expiration check
     const checkAccessTokenExpireTime = (token) => {
-        if (typeof token !== "string") return null;
+        if (!token || typeof token !== "string") return null;
 
         try {
             const decodedToken = jwtDecode(token);
-            // 检查解码后的 token 是否有 exp 字段
             if (decodedToken && typeof decodedToken.exp === "number") {
-                let expTimestamp = decodedToken.exp * 1000; // 返回毫秒级时间戳
+                const expTimestamp = decodedToken.exp * 1000;
                 const now = Date.now();
-
                 const remainingMilliseconds = expTimestamp - now;
+                
                 if (remainingMilliseconds < 0) {
                     return {
                         label: "已过期",
@@ -288,6 +316,7 @@
                         isExpired: true,
                     };
                 }
+                
                 const days = Math.floor(remainingMilliseconds / (1000 * 60 * 60 * 24));
                 if (days > 0) {
                     return {
@@ -306,7 +335,6 @@
                     };
                 }
 
-                // 小于一小时，显示分钟。向上取整以避免显示0分钟。
                 const minutes = Math.ceil(remainingMilliseconds / (1000 * 60));
                 return {
                     label: `${minutes}分钟`,
@@ -314,20 +342,20 @@
                     isExpired: false,
                 };
             }
-        } catch {
-            // 解码失败，不是有效的JWT，继续尝试下一个
-            console.warn("JWT decoding failed for a token, continuing...");
+        } catch (error) {
+            console.warn("JWT decoding failed:", error);
             return null;
         }
     };
 
+    // Enhanced membership type check
     const checkMembershipType = (info) => {
-        let remainingDays = info.daysRemainingOnTrial
-            ? info.daysRemainingOnTrial
-            : calculateRemainingDays(info.registerTimeStamp);
+        let remainingDays = info.daysRemainingOnTrial ?? calculateRemainingDays(info.registerTimeStamp);
+        
         if (info.membershipType === SUBSCRIBE_FREE_NAME) {
             remainingDays = 0;
         }
+        
         let membershipTypeShow = "";
         if (info.membershipType === SUBSCRIBE_FREE_NAME) {
             membershipTypeShow = "（已失效）" + info.membershipType;
@@ -342,47 +370,55 @@
         return membershipTypeShow;
     };
 
-    /**
-     * 计算剩余天数
-     * @param {string} registerTime - 格式为 "YYYY-MM-DD HH:MM:SS" 的注册时间
-     * @returns {number} 剩余天数
-     */
+    // Enhanced remaining days calculation
     const calculateRemainingDays = (registerTime) => {
         if (!registerTime) return 0;
-        const now = new Date();
-        const registerDate = new Date(registerTime);
-        // 15天后过期
-        const expiryDate = new Date(new Date(registerTime).setDate(registerDate.getDate() + 15));
+        
+        try {
+            const now = new Date();
+            const registerDate = new Date(registerTime);
+            const expiryDate = new Date(registerDate.getTime() + 15 * 24 * 60 * 60 * 1000); // 15 days
 
-        // 如果已过期，返回0
-        if (now > expiryDate) {
+            if (now > expiryDate) {
+                return 0;
+            }
+
+            const remainingMilliseconds = expiryDate - now;
+            return Math.ceil(remainingMilliseconds / (1000 * 60 * 60 * 24));
+        } catch (error) {
+            console.error("计算剩余天数失败:", error);
             return 0;
         }
-
-        // 计算剩余毫秒数并转换为天数
-        const remainingMilliseconds = expiryDate - now;
-        // 计算剩余天数，1天=24小时*60分钟*60秒*1000毫秒，向上取整保证有剩余时间时显示为1天
-        const remainingDays = Math.ceil(remainingMilliseconds / (1000 * 60 * 60 * 24));
-        return remainingDays;
     };
 
+    // Enhanced machine reset
     const resetMachine = async () => {
-        ElMessageBox.confirm("确定要重置机器码？依赖机器码的软件可能失效，此操作需要管理员权限", "重置机器码", {
-            confirmButtonText: "确定",
-            cancelButtonText: "取消",
-            type: "warning",
-        })
-            .then(async () => {
-                await window.api.setRandomMachineInfo();
-                await appStore.fetchSystemInfo();
-                await appStore.fetchCursorInfo();
-                ElMessage.success("机器码已重置");
-            })
-            .catch(() => {
-                // ElMessage.info("已取消重置机器码");
-            });
+        try {
+            await ElMessageBox.confirm(
+                "确定要重置机器码？依赖机器码的软件可能失效，此操作需要管理员权限", 
+                "重置机器码", 
+                {
+                    confirmButtonText: "确定",
+                    cancelButtonText: "取消",
+                    type: "warning",
+                }
+            );
+            
+            await window.api.setRandomMachineInfo();
+            await appStore.fetchSystemInfo();
+            await appStore.fetchCursorInfo();
+            ElMessage.success("机器码已重置");
+            await addLog({ level: "success", data: "机器码已重置" });
+        } catch (error) {
+            if (error !== 'cancel') {
+                console.error("重置机器码失败:", error);
+                ElMessage.error("重置机器码失败");
+                await addLog({ level: "error", data: `重置机器码失败: ${error.message}` });
+            }
+        }
     };
 
+    // Enhanced backup functions
     const backup = async () => {
         backupSettingsDialogVisible.value = true;
     };
@@ -391,54 +427,64 @@
         restoreBackupDialogVisible.value = true;
     };
 
+    // Enhanced auto-registration with better validation
+    const validateRegistrationConfig = () => {
+        const { RECEIVING_EMAIL, RECEIVING_EMAIL_PIN, EMAIL_DOMAIN } = appConfig.value;
+
+        if (!RECEIVING_EMAIL || !RECEIVING_EMAIL_PIN || !EMAIL_DOMAIN) {
+            settingsDialogVisible.value = true;
+            return false;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(RECEIVING_EMAIL)) {
+            ElMessage.error("收件邮箱格式不正确，请修改");
+            settingsDialogVisible.value = true;
+            return false;
+        }
+
+        return true;
+    };
+
     const autoRegisterAndLogin = async () => {
         if (loadingAutoRegister.value) {
             ElMessage.error("正在执行注册程序，请稍后再试");
             return;
         }
 
-        const { RECEIVING_EMAIL, RECEIVING_EMAIL_PIN, EMAIL_DOMAIN } = appConfig.value;
+        if (!validateRegistrationConfig()) return;
 
-        if (!RECEIVING_EMAIL || !RECEIVING_EMAIL_PIN || !EMAIL_DOMAIN) {
-            settingsDialogVisible.value = true;
-            return;
-        }
-
-        const emailRegex =
-            /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/;
-        if (!emailRegex.test(RECEIVING_EMAIL)) {
-            ElMessage.error("收件邮箱格式不正确，请修改");
-            settingsDialogVisible.value = true;
-            return;
-        }
-
-        ElMessageBox.confirm("确定要一键注册并使用新账号登录吗？此操作将重置机器码、覆盖登录账号。", "一键注册登录", {
-            confirmButtonText: "确定",
-            cancelButtonText: "取消",
-            type: "warning",
-        })
-            .then(() => {
-                try {
-                    isAutoRegistAndLogin.value = true;
-                    // ElMessage.success("已开始一键注册登录，请关注日志输出...");
-                    addLog({ data: "开始一键注册登录..." });
-                    appStore.setIsAutoLoginFlow(true);
-                    window.api.runAutoRegister({
-                        email: RECEIVING_EMAIL,
-                        pin: RECEIVING_EMAIL_PIN,
-                        domain: EMAIL_DOMAIN,
-                        LOOP_COUNT: 1, // 只注册一个
-                    });
-                } catch (e) {
-                    console.error(e);
-                    ElMessage.error("一键注册登录过程中发生错误");
-                    addLog({ level: "error", data: `一键注册登录过程中发生错误: ${e.message}` });
-                    appStore.setIsAutoLoginFlow(false);
+        try {
+            await ElMessageBox.confirm(
+                "确定要一键注册并使用新账号登录吗？此操作将重置机器码、覆盖登录账号。", 
+                "一键注册登录", 
+                {
+                    confirmButtonText: "确定",
+                    cancelButtonText: "取消",
+                    type: "warning",
                 }
-            })
-            .catch(() => {
-                // ElMessage.info("已取消一键注册登录");
+            );
+            
+            const { RECEIVING_EMAIL, RECEIVING_EMAIL_PIN, EMAIL_DOMAIN } = appConfig.value;
+            
+            isAutoRegistAndLogin.value = true;
+            await addLog({ data: "开始一键注册登录..." });
+            appStore.setIsAutoLoginFlow(true);
+            
+            await window.api.runAutoRegister({
+                email: RECEIVING_EMAIL,
+                pin: RECEIVING_EMAIL_PIN,
+                domain: EMAIL_DOMAIN,
+                LOOP_COUNT: 1,
             });
+        } catch (error) {
+            if (error !== 'cancel') {
+                console.error("一键注册登录失败:", error);
+                ElMessage.error("一键注册登录过程中发生错误");
+                await addLog({ level: "error", data: `一键注册登录过程中发生错误: ${error.message}` });
+                appStore.setIsAutoLoginFlow(false);
+            }
+        }
     };
 
     const autoRegister = async () => {
@@ -447,72 +493,68 @@
             return;
         }
 
-        const { RECEIVING_EMAIL, RECEIVING_EMAIL_PIN, EMAIL_DOMAIN } = appConfig.value;
+        if (!validateRegistrationConfig()) return;
 
-        if (!RECEIVING_EMAIL || !RECEIVING_EMAIL_PIN || !EMAIL_DOMAIN) {
-            settingsDialogVisible.value = true;
-            return;
-        }
-
-        const emailRegex =
-            /[\w!#$%&'*+/=?^_`{|}~-]+(?:\.[\w!#$%&'*+/=?^_`{|}~-]+)*@(?:[\w](?:[\w-]*[\w])?\.)+[\w](?:[\w-]*[\w])?/;
-        if (!emailRegex.test(RECEIVING_EMAIL)) {
-            ElMessage.error("收件邮箱格式不正确，请修改");
-            settingsDialogVisible.value = true;
-            return;
-        }
-        loopCount.value = 1; // 重置循环次数
-
-        let registerNum = appStore.appLicenseInfo?.license?.permissions?.registerNum || 2;
-        ElMessageBox.prompt("请输入批量注册的数量，注册过多可能被封域名", "批量自动注册", {
-            confirmButtonText: "确定",
-            cancelButtonText: "取消",
-            customClass: "auto-register-dialog",
-            inputValue: loopCount.value,
-            inputPattern: /^\d+$/,
-            inputValidator: (value) => {
-                const num = Number(value);
-                if (!Number.isInteger(num) || num < 1 || num > registerNum) {
-                    return `请输入1到${registerNum}之间的整数`;
+        loopCount.value = 1;
+        const registerNum = appStore.appLicenseInfo?.license?.permissions?.registerNum || 2;
+        
+        try {
+            const { value } = await ElMessageBox.prompt(
+                "请输入批量注册的数量，注册过多可能被封域名", 
+                "批量自动注册", 
+                {
+                    confirmButtonText: "确定",
+                    cancelButtonText: "取消",
+                    customClass: "auto-register-dialog",
+                    inputValue: loopCount.value,
+                    inputPattern: /^\d+$/,
+                    inputValidator: (value) => {
+                        const num = Number(value);
+                        if (!Number.isInteger(num) || num < 1 || num > registerNum) {
+                            return `请输入1到${registerNum}之间的整数`;
+                        }
+                        return true;
+                    },
                 }
-                return true;
-            },
-        })
-            .then(({ value }) => {
-                loopCount.value = parseInt(value, 10);
-                try {
-                    isAutoRegistAndLogin.value = false;
-                    // ElMessage.success("已开始批量自动注册，请关注日志输出...");
-                    // addLog({ data: `开始批量自动注册，共 ${loopCount.value} 次...` });
-                    window.api.runAutoRegister({
-                        email: RECEIVING_EMAIL,
-                        pin: RECEIVING_EMAIL_PIN,
-                        domain: EMAIL_DOMAIN,
-                        LOOP_COUNT: loopCount.value,
-                        AUTO_LOGIN: false,
-                    });
-                } catch (e) {
-                    console.error(e);
-                    ElMessage.error("批量自动注册过程中发生错误");
-                    addLog({ level: "error", data: `批量自动注册过程中发生错误: ${e.message}` });
-                }
-            })
-            .catch(() => {
-                // addLog({ data: "已取消批量自动注册" });
-                // ElMessage.info("已取消批量自动注册");
+            );
+            
+            const { RECEIVING_EMAIL, RECEIVING_EMAIL_PIN, EMAIL_DOMAIN } = appConfig.value;
+            
+            loopCount.value = parseInt(value, 10);
+            isAutoRegistAndLogin.value = false;
+            
+            await window.api.runAutoRegister({
+                email: RECEIVING_EMAIL,
+                pin: RECEIVING_EMAIL_PIN,
+                domain: EMAIL_DOMAIN,
+                LOOP_COUNT: loopCount.value,
+                AUTO_LOGIN: false,
             });
+        } catch (error) {
+            if (error !== 'cancel') {
+                console.error("批量自动注册失败:", error);
+                ElMessage.error("批量自动注册过程中发生错误");
+                await addLog({ level: "error", data: `批量自动注册过程中发生错误: ${error.message}` });
+            }
+        }
     };
 
-    const cancelAutoRegister = () => {
+    const cancelAutoRegister = async () => {
         if (loadingAutoRegister.value) {
-            ElMessageBox.confirm("正在执行注册程序，确定要取消吗？", "提示", {
-                confirmButtonText: "确定",
-                cancelButtonText: "取消",
-                type: "warning",
-            }).then(async () => {
+            try {
+                await ElMessageBox.confirm("正在执行注册程序，确定要取消吗？", "提示", {
+                    confirmButtonText: "确定",
+                    cancelButtonText: "取消",
+                    type: "warning",
+                });
+                
                 await window.api.cleanupAutoRegister();
-                addLog({ level: "warning", data: "正在取消自动注册程序..." });
-            });
+                await addLog({ level: "warning", data: "正在取消自动注册程序..." });
+            } catch (error) {
+                if (error !== 'cancel') {
+                    console.error("取消自动注册失败:", error);
+                }
+            }
         }
     };
 
@@ -525,6 +567,28 @@
             window.api.openExternalLink(url);
         }
     };
+
+    // Watch for store errors
+    watch(error, (newError) => {
+        if (newError) {
+            addLog({ level: "error", data: newError });
+        }
+    });
+
+    // Lifecycle hooks
+    onMounted(async () => {
+        unsubscribeLog = window.api.onLog(handleLogFromMain);
+        await initializeApp();
+    });
+
+    onUnmounted(() => {
+        if (unsubscribeLog) {
+            unsubscribeLog();
+        }
+        if (refreshIntervalId) {
+            clearInterval(refreshIntervalId);
+        }
+    });
 </script>
 
 <template>
