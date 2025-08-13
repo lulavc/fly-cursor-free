@@ -44,8 +44,8 @@
 <style scoped lang="scss">
     .title-bar {
         color: var(--ev-c-text-1);
-        -webkit-app-region: no-drag; /* 兼容Chromium内核 */
-        app-region: no-drag; /* 更通用的属性，确保在不同环境中生效 */
+        -webkit-app-region: no-drag; /* Compatible with Chromium kernel */
+        app-region: no-drag; /* More universal property, ensures it works in different environments */
         user-select: none;
         padding: 0 20px;
         position: fixed;
@@ -61,10 +61,10 @@
             justify-content: space-between;
             align-items: center;
             height: 40px;
-            -webkit-app-region: drag; /* 兼容Chromium内核 */
-            app-region: drag; /* 更通用的属性，确保在不同环境中生效 */
+            -webkit-app-region: drag; /* Compatible with Chromium kernel */
+            app-region: drag; /* More universal property, ensures it works in different environments */
 
-            // // Windows下显示为一个可见的区域，帮助用户区分拖拽区
+            // // On Windows, displays as a visible area to help users distinguish the drag area
             // &::after {
             //     content: "";
             //     position: absolute;

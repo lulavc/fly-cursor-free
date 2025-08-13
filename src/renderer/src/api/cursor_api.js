@@ -308,7 +308,7 @@ export const getCursorAccountInfo = async () => {
                 subscriptionType = `${membership} (${status})`;
             }
             
-            customerEmail = info?.customer?.email || "未知";
+            customerEmail = info?.customer?.email || "Unknown";
             trialDaysRemaining = info?.daysRemainingOnTrial || 0;
         }
 
@@ -316,7 +316,7 @@ export const getCursorAccountInfo = async () => {
         const usage = usageInfo.status === 'fulfilled' ? usageInfo.value : {
             numRequestsTotal: 0,
             maxRequestUsage: 999,
-            error: usageInfo.reason?.message || "获取使用量失败"
+            error: usageInfo.reason?.message || "Failed to get usage information"
         };
 
         return {
@@ -328,7 +328,7 @@ export const getCursorAccountInfo = async () => {
             isActive: subscriptionInfo.status === 'fulfilled',
         };
     } catch (error) {
-        console.error("获取账号信息失败:", error);
+        console.error("Failed to get account information:", error);
         throw error;
     }
 };
@@ -341,7 +341,7 @@ export const getCursorAccountInfo = async () => {
  */
 export const getApiTokens = async (sessionToken) => {
     if (!validateToken(sessionToken)) {
-        throw new Error("无效的会话令牌");
+        throw new Error("Invalid session token");
     }
 
     const url = "https://token.cursorpro.com.cn/reftoken";
@@ -366,10 +366,10 @@ export const getApiTokens = async (sessionToken) => {
         if (data && data.code === 0) {
             return data.data;
         } else {
-            throw new Error(data?.msg || "获取API Token失败");
+            throw new Error(data?.msg || "Failed to get API Token");
         }
     } catch (error) {
-        console.error("获取API访问令牌失败:", error);
+        console.error("Failed to get API access token:", error);
         throw error;
     }
 };

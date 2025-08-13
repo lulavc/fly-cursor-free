@@ -1,42 +1,42 @@
 /**
  * src/main/api.js
- * 该文件用于集中处理所有通过 IPC 调用转发过来的 API 请求。
+ * This file is used to centrally handle all API requests forwarded through IPC calls.
  */
 import axios from "axios";
 
-// 也可以在这里创建一个配置好的 axios 实例，例如设置 baseURL, timeout, headers 等
+// You can also create a configured axios instance here, such as setting baseURL, timeout, headers, etc.
 // const apiClient = axios.create({
 //   baseURL: 'https://api.example.com',
 //   timeout: 5000,
 // });
 
 /**
- * 通用的 API 请求处理器
- * @param {object} options - axios 请求配置 (method, url, data, params, headers 等)
- * @returns {Promise<object>} - 返回从 API 获取的数据或错误信息
+ * Universal API request handler
+ * @param {object} options - axios request configuration (method, url, data, params, headers, etc.)
+ * @returns {Promise<object>} - Returns data or error information from API
  */
 export async function handleApiRequest(options) {
     try {
-        // 确保参数结构完整和正确
+        // Ensure parameter structure is complete and correct
         const requestConfig = {
             method: options.method || "get",
             url: options.url,
-            // 仅在提供了 data 时添加到请求配置中
+            // Only add to request configuration if data is provided
             ...(options.data && { data: options.data }),
-            // 仅在提供了 params 时添加到请求配置中
+            // Only add to request configuration if params is provided
             ...(options.params && { params: options.params }),
-            // 仅在提供了 headers 时添加到请求配置中
+            // Only add to request configuration if headers is provided
             ...(options.headers && { headers: options.headers }),
-            // 添加其他可能的 axios 选项
+            // Add other possible axios options
             ...(options.timeout && { timeout: options.timeout }),
             ...(options.responseType && { responseType: options.responseType }),
             ...(options.withCredentials && { withCredentials: options.withCredentials }),
         };
 
-        // 使用 axios 发起请求
+        // Use axios to make the request
         const response = await axios(requestConfig);
 
-        // 返回成功响应
+        // Return successful response
         return {
             success: true,
             data: response.data,
@@ -44,9 +44,9 @@ export async function handleApiRequest(options) {
             headers: response.headers,
         };
     } catch (error) {
-        console.error(`API请求失败: ${error.message}`);
+        console.error(`API request failed: ${error.message}`);
 
-        // 返回一个标准化的错误结构
+        // Return a standardized error structure
         return {
             success: false,
             error: {

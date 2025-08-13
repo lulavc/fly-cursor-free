@@ -341,73 +341,73 @@
                 };
             });
 
-            // 恢复之前的loading状态
+            // Restore previous loading state
             // rowLoadingState.value = previousLoadingState;
 
-            console.log("查询到", allData.value.length, "条数据");
+            console.log("Found", allData.value.length, "records");
             console.log("allData.value :>> ", allData.value);
         } catch (error) {
-            console.error("获取账户列表失败:", error);
-            ElMessage.error("获取账户列表失败: " + error.message);
+            console.error("Failed to get account list:", error);
+            ElMessage.error("Failed to get account list: " + error.message);
         } finally {
             loading.value = false;
         }
     };
 
-    // --- 事件处理 ---
+    // --- Event Handling ---
 
-    // 导入按钮点击
+    // Import button click
     const handleImport = async () => {
         const handleId = `import-${Date.now()}`;
         try {
-            progressState.title = "正在导入账户";
+            progressState.title = "Importing Accounts";
             progressState.visible = true;
             progressState.percentage = 0;
-            progressState.message = "等待用户选择文件...";
+            progressState.message = "Waiting for user to select file...";
             progressState.status = "pending";
             progressState.handleId = handleId;
 
             const result = await window.api.accounts.importAccountsFromJSON(handleId);
 
             if (!result.canceled) {
-                // ElMessage.success(`导入完成！成功 ${result.successful} 个，失败 ${result.failed} 个。`);
+                // ElMessage.success(`Import completed! Successfully imported ${result.successful}, failed ${result.failed}.`);
                 await fetchAccounts();
             } else {
                 progressState.visible = false;
             }
         } catch (error) {
-            console.log("导入操作失败 :>> ", error);
-            // ElMessage.error("导入操作失败: " + error.message);
+            console.log("Import operation failed :>> ", error);
+            // ElMessage.error("Import operation failed: " + error.message);
         }
     };
 
-    // 导出按钮点击
+    // Export button click
     const handleExport = async () => {
         const handleId = `export-${Date.now()}`;
         try {
-            progressState.title = "正在导出账户";
+            progressState.title = "Exporting Accounts";
             progressState.visible = true;
             progressState.percentage = 0;
-            progressState.message = "等待用户选择保存位置...";
+            progressState.message = "Waiting for user to select save location...";
             progressState.status = "pending";
             progressState.handleId = handleId;
 
             const result = await window.api.accounts.exportAccountsToJSON(handleId);
 
             if (!result.canceled) {
-                // ElMessage.success(`账户已成功导出到: ${result.filePath}`);
+                // ElMessage.success(`Accounts successfully exported to: ${result.filePath}`);
             } else {
-                // ElMessage.info("用户取消了导出操作。");
+                // ElMessage.info("User cancelled the export operation.");
                 progressState.visible = false;
             }
         } catch (error) {
-            console.log("导出操作失败 :>> ", error);
-            ElMessage.error("导出操作失败: " + error.message);
+            console.log("Export operation failed :>> ", error);
+            ElMessage.error("Export operation failed: " + error.message);
             progressState.visible = false;
         }
     };
 
-    // 新增按钮点击
+    // Add button click
     const handleAdd = () => {
         accountForm.value = { id: null, email: "", accessToken: "" };
         nextTick(() => {
@@ -419,69 +419,69 @@
     // eslint-disable-next-line no-unused-vars
     const importCurrentLoginAccount = () => {
         if (!cursorAccountsInfo.value.email) {
-            ElMessage.error("当前没有登录账户。");
+            ElMessage.error("No account currently logged in.");
             return;
         }
         accountForm.value = { ...cursorAccountsInfo.value };
     };
 
-    // // 编辑按钮点击
+    // // Edit button click
     // const handleEdit = async (row) => {
 
     //     try {
     //         isEditMode.value = true;
-    //         // 使用 Object.assign 确保响应性
+    //         // Use Object.assign to ensure reactivity
     //         Object.assign(accountForm.value, { ...row });
     //         dialogVisible.value = true;
     //     } catch (error) {
-    //         console.error("编辑操作发生错误:", error);
-    //         ElMessage.error("操作失败：" + error.message);
+    //         console.error("Edit operation error:", error);
+    //         ElMessage.error("Operation failed: " + error.message);
     //     }
     // };
 
-    // // 删除按钮点击
+    // // Delete button click
     // const handleDelete = (row) => {
-    //     ElMessageBox.confirm(`确定要删除邮箱为 "${row.email}" 的账户吗？`, "警告", {
-    //         confirmButtonText: "确定",
-    //         cancelButtonText: "取消",
+    //     ElMessageBox.confirm(`Are you sure you want to delete the account with email "${row.email}"?`, "Warning", {
+    //         confirmButtonText: "Confirm",
+    //         cancelButtonText: "Cancel",
     //         type: "warning",
     //     })
     //         .then(async () => {
     //             try {
     //                 const success = await window.api.accounts.deleteAccount(row.email);
     //                 if (success) {
-    //                     ElMessage.success("删除成功！");
+    //                     ElMessage.success("Delete successful!");
     //                     await fetchAccounts();
     //                 } else {
-    //                     ElMessage.error("删除失败，未找到该账户。");
+    //                     ElMessage.error("Delete failed, account not found.");
     //                 }
     //             } catch (error) {
-    //                 ElMessage.error("删除失败: " + error.message);
+    //                 ElMessage.error("Delete failed: " + error.message);
     //             }
     //         })
     //         .catch(() => {
-    //             // 用户取消
+    //             // User cancelled
     //         });
     // };
 
     const handleUpdateSessionToken = async (row) => {
         if (!row.WorkosCursorSessionToken) {
-            ElMessage.error("该账户没有刷新令牌。");
+            ElMessage.error("This account has no refresh token.");
             return;
         }
 
         if (rowLoadingStateSessionToken.value[row.email]) {
             return;
         }
-        ElMessageBox.confirm("使用第三方接口刷新60天令牌，该接口每个ip每天5次，可能有未知风险，确定刷新吗？", "注意", {
-            confirmButtonText: "确定",
-            cancelButtonText: "取消",
+        ElMessageBox.confirm("Use third-party interface to refresh 60-day token, this interface has 5 times per IP per day, may have unknown risks, confirm refresh?", "Notice", {
+            confirmButtonText: "Confirm",
+            cancelButtonText: "Cancel",
             type: "warning",
         }).then(async () => {
             rowLoadingStateSessionToken.value[row.email] = true;
 
-            // 获取 api tokens
-            console.log("正在刷新 token ");
+            // Get api tokens
+            console.log("Refreshing token ");
             const updateData = {
                 email: row.email,
             };
@@ -493,8 +493,8 @@
                 await fetchAccounts();
                 appStore.setActiveEmail(row.email);
             } catch (error) {
-                console.error("获取 api tokens 失败:", error);
-                ElMessage.error("刷新 token 失败！");
+                console.error("Failed to get api tokens:", error);
+                ElMessage.error("Failed to refresh token!");
             } finally {
                 rowLoadingStateSessionToken.value[row.email] = false;
             }
@@ -504,10 +504,10 @@
     const handleUpdateAccount = async (row) => {
         let accessToken = row.optimalToken;
         if (!accessToken) {
-            ElMessage.error("该账户没有访问令牌。");
+            ElMessage.error("This account has no access token.");
             return;
         }
-        // 设置当前行的loading状态
+        // Set loading state for current row
         rowLoadingState.value[row.email] = true;
 
         try {
@@ -530,8 +530,8 @@
             await fetchAccounts();
             appStore.setActiveEmail(row.email);
         } catch (error) {
-            console.error("更新订阅信息时发生意外错误:", error);
-            ElMessage.error("更新订阅信息失败");
+            console.error("Unexpected error occurred while updating subscription information:", error);
+            ElMessage.error("Failed to update subscription information");
         } finally {
             rowLoadingState.value[row.email] = false;
         }
@@ -539,21 +539,21 @@
 
     const handleUseAccount = (row) => {
         if (!row.optimalToken) {
-            ElMessage.error("该账户没有访问令牌。");
+            ElMessage.error("This account has no access token.");
             return;
         }
         emit("show-use-account-dialog", { ...row });
     };
 
-    // 批量删除按钮点击
+    // Batch delete button click
     const handleDeleteBatch = () => {
         if (multipleSelection.value.length === 0) {
-            ElMessage.warning("请至少选择一个账户。");
+            ElMessage.warning("Please select at least one account.");
             return;
         }
-        ElMessageBox.confirm(`确定要删除选中的 ${multipleSelection.value.length} 个账户吗？`, "警告", {
-            confirmButtonText: "确定",
-            cancelButtonText: "取消",
+        ElMessageBox.confirm(`Are you sure you want to delete the selected ${multipleSelection.value.length} accounts?`, "Warning", {
+            confirmButtonText: "Confirm",
+            cancelButtonText: "Cancel",
             type: "warning",
         })
             .then(async () => {
@@ -561,28 +561,28 @@
                     const handleId = `delete-batch-${Date.now()}`;
                     const emails = multipleSelection.value.map((item) => item.email);
 
-                    progressState.title = "正在批量删除";
+                    progressState.title = "Batch Deleting";
                     progressState.visible = true;
                     progressState.percentage = 0;
-                    progressState.message = "准备开始...";
+                    progressState.message = "Preparing to start...";
                     progressState.status = "pending";
                     progressState.handleId = handleId;
 
                     const deletedCount = await window.api.accounts.deleteAccounts(emails, handleId);
-                    console.log(`成功删除了 ${deletedCount} 个账户。`);
-                    // ElMessage.success(`成功删除了 ${deletedCount} 个账户。`);
+                    console.log(`Successfully deleted ${deletedCount} accounts.`);
+                    // ElMessage.success(`Successfully deleted ${deletedCount} accounts.`);
                     await fetchAccounts();
-                    multipleSelection.value = []; // 清空选择
+                    multipleSelection.value = []; // Clear selection
                 } catch (error) {
-                    ElMessage.error("批量删除失败: " + error.message);
+                    ElMessage.error("Batch delete failed: " + error.message);
                 }
             })
             .catch(() => {
-                // 用户取消
+                // User cancelled
             });
     };
 
-    // 提交表单
+    // Submit form
     const submitForm = async () => {
         await formRef.value.validate(async (valid) => {
             if (valid) {
@@ -590,15 +590,15 @@
                     const expTimestamp = getTokenExpTimestamp(accountForm.value.accessToken);
                     const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
                     if (!emailRegex.test(accountForm.value.email)) {
-                        ElMessage.error("邮箱格式不正确");
+                        ElMessage.error("Email format is incorrect");
                         return;
                     }
                     if (!expTimestamp) {
-                        ElMessage.error("token 无效");
+                        ElMessage.error("Token is invalid");
                         return;
                     }
                     if (expTimestamp < Date.now()) {
-                        ElMessage.error("token 已过期");
+                        ElMessage.error("Token has expired");
                         return;
                     }
 
@@ -613,45 +613,45 @@
                         saveData.accessToken = accountForm.value.accessToken;
                     }
 
-                    // 新增模式
+                    // Add mode
                     await window.api.accounts.createOrUpdateAccount(saveData);
-                    ElMessage.success("新增成功！");
+                    ElMessage.success("Added successfully!");
                     dialogVisible.value = false;
 
                     await fetchAccounts();
                     appStore.setActiveEmail(accountForm.value.email);
                 } catch (error) {
                     console.log("error :>> ", error);
-                    ElMessage.error("操作失败：" + error.message);
+                    ElMessage.error("Operation failed: " + error.message);
                 }
             }
         });
     };
 
-    // 处理表格多选变化
+    // Handle table multi-selection changes
     const handleSelectionChange = (val) => {
         multipleSelection.value = val;
     };
 
-    // 处理每页显示条数变化
+    // Handle page size changes
     const handleSizeChange = (val) => {
         pagination.pageSize = val;
-        pagination.currentPage = 1; // 切换每页条数时，返回第一页
+        pagination.currentPage = 1; // When changing page size, return to first page
         fetchAccounts();
     };
 
-    // 处理当前页码变化
+    // Handle current page number changes
     const handleCurrentChange = (val) => {
         pagination.currentPage = val;
         fetchAccounts();
     };
 
-    // 处理排序变化
+    // Handle sorting changes
     const handleSortChange = ({ prop, order }) => {
-        // 目前只支持按注册时间排序
+        // Currently only supports sorting by registration time
         if (prop === "register_time" && order) {
             sortOptions.order = order;
-            // 排序后回到第一页
+            // Return to first page after sorting
             pagination.currentPage = 1;
             fetchAccounts();
         }
@@ -676,7 +676,7 @@
 
 <template>
     <div class="account-management-container">
-        <!-- 表格展示区 -->
+        <!-- Table Display Area -->
         <div class="table-container">
             <el-table
                 v-loading="loading"
@@ -692,13 +692,13 @@
             >
                 <el-table-column type="selection" width="55" align="center" />
                 <el-table-column
-                    label="序号"
+                    label="No."
                     type="index"
                     width="60"
                     align="center"
                     :index="(index) => (pagination.currentPage - 1) * pagination.pageSize + index + 1"
                 />
-                <el-table-column prop="email" label="邮箱" min-width="100" show-overflow-tooltip>
+                <el-table-column prop="email" label="Email" min-width="100" show-overflow-tooltip>
                     <template #default="scope">
                         <span style="position: relative; padding-left: 5px">
                             <el-icon
@@ -716,7 +716,7 @@
 
                 <el-table-column
                     prop="register_time"
-                    label="创建时间"
+                    label="Created Time"
                     min-width="100"
                     align="center"
                     sortable="custom"
@@ -729,7 +729,7 @@
                     </template>
                 </el-table-column>
 
-                <el-table-column label="订阅状态" width="100" align="center">
+                <el-table-column label="Subscription Status" width="100" align="center">
                     <template #default="scope">
                         <el-tag
                             v-if="scope.row.membershipTypeShow"
@@ -748,7 +748,7 @@
                 </el-table-column>
                 <!-- <el-table-column
                     prop="modelUsage.membershipType"
-                    label="令牌有效期"
+                    label="Token Validity Period"
                     width="120"
                     align="center"
                     show-overflow-tooltip
@@ -763,7 +763,7 @@
                     </template>
                 </el-table-column> -->
 
-                <el-table-column label="模型使用量" width="100" align="center">
+                <el-table-column label="Model Usage" width="100" align="center">
                     <template #default="scope">
                         <div v-if="scope.row.modelUsage.total">
                             <span>{{ scope.row.modelUsage.used }} / {{ scope.row.modelUsage.total }}</span>
@@ -775,22 +775,22 @@
                                 :show-text="false"
                             />
                         </div>
-                        <div v-else style="font-size: 12px; line-height: 23px">无限制</div>
+                        <div v-else style="font-size: 12px; line-height: 23px">Unlimited</div>
                     </template>
                 </el-table-column>
 
-                <el-table-column fixed="right" label="操作" width="160" align="center">
+                <el-table-column fixed="right" label="Actions" width="160" align="center">
                     <template #default="scope">
                         <template v-if="!scope.row.expTimestampShow.isExpired">
                             <el-button link type="success" size="small" @click="handleUseAccount(scope.row)">{{
-                                cursorAccountsInfo.email === scope.row.email ? "使用中" : "使用"
+                                cursorAccountsInfo.email === scope.row.email ? "In Use" : "Use"
                             }}</el-button>
                             <el-button
                                 link
                                 type="primary"
                                 :loading="rowLoadingState[scope.row.email]"
                                 @click="handleUpdateAccount(scope.row)"
-                                >更新
+                                >Update
                             </el-button>
                             <el-button
                                 v-if="scope.row.isShowUpdateSessionToken"
@@ -944,16 +944,16 @@
         overflow: hidden;
     }
 
-    /* 美化UI样式 */
+    /* Beautify UI Styles */
     :deep(.el-table) {
-        // 表头
+        // Table header
         th.el-table__cell {
             background-color: #f7f9fc;
             color: #333;
             font-weight: 600;
             user-select: none;
         }
-        // hover效果
+        // Hover effect
         .el-table__body tr:hover > td.el-table__cell {
             background-color: #ecf5ff !important;
         }
