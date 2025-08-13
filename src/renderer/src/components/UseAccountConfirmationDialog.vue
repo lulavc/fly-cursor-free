@@ -1,31 +1,31 @@
 <template>
     <el-dialog
         :model-value="modelValue"
-        title="切换账号"
+        title="Switch Account"
         width="500px"
         :close-on-click-modal="false"
         @update:model-value="$emit('update:modelValue', $event)"
     >
         <div v-if="account">
             <p>
-                确定要使用账号<strong>{{ account.email }}</strong
-                >吗？
+                Are you sure you want to use account <strong>{{ account.email }}</strong
+                >?
             </p>
-            <p>此操作可能会重启Cursor ！</p>
+            <p>This operation may restart Cursor!</p>
             <p>
-                <el-checkbox v-model="isResetMachines">重置机器码（推荐）</el-checkbox>
-            </p>
-            <p>
-                <el-checkbox v-model="isResetCursor">特殊重置Cursor（推荐）</el-checkbox>
+                <el-checkbox v-model="isResetMachines">Reset machine code (Recommended)</el-checkbox>
             </p>
             <p>
-                <el-checkbox v-model="isResetCursorAll">完全重置Cursor</el-checkbox>
+                <el-checkbox v-model="isResetCursor">Special reset Cursor (Recommended)</el-checkbox>
+            </p>
+            <p>
+                <el-checkbox v-model="isResetCursorAll">Complete reset Cursor</el-checkbox>
             </p>
         </div>
         <template #footer>
             <span class="dialog-footer">
-                <el-button @click="$emit('update:modelValue', false)">取消</el-button>
-                <el-button type="primary" @click="handleConfirm">确定</el-button>
+                <el-button @click="$emit('update:modelValue', false)">Cancel</el-button>
+                <el-button type="primary" @click="handleConfirm">OK</el-button>
             </span>
         </template>
     </el-dialog>

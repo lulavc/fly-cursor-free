@@ -24,9 +24,9 @@
                 label: item.replace(
                     /^settings_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})$/,
                     (match, y, m, d, h, min, s) => {
-                        let name = `备份_${y}年${m}月${d}日${h}时${min}分${s}秒`;
+                        let name = `Backup_${y}-${m}-${d} ${h}:${min}:${s}`;
                         if (index === 0) {
-                            name = name + " 最新";
+                            name = name + " Latest";
                         }
                         return name;
                     }
@@ -58,7 +58,7 @@
         if (isResetOriginalMachineGuid.value) {
             let result = await window.api.setMachineGuid(appConfig.value.originalMachineGuid);
             if (result.success === true) {
-                ElMessage.success("恢复初始机器码成功");
+                ElMessage.success("Restored initial machine code successfully");
                 await appStore.fetchSystemInfo();
             } else {
                 ElMessage.error(result.message);
@@ -71,12 +71,12 @@
         }
 
         if (!appConfig.value.path_cursor_user_db) {
-            ElMessage.error("未找到Cursor文件路径，建议将Cursor安装到默认路径");
+            ElMessage.error("Cursor file path not found, recommend installing Cursor to default path");
             return;
         }
 
         if (!selectedBackup.value) {
-            ElMessage.error("请选择要恢复的备份文件");
+            ElMessage.error("Please select a backup file to restore");
             return;
         }
 
@@ -84,23 +84,23 @@
             console.log("selectedBackup.value :>> ", selectedBackup.value);
             let result = await window.api.restoreBackup(selectedBackup.value);
             if (result.success === true) {
-                ElMessage.success("恢复备份成功");
+                ElMessage.success("Backup restored successfully");
             } else {
                 throw result.message;
             }
         } catch (error) {
-            console.error("恢复备份失败", error);
-            ElMessage.error("恢复备份失败");
+            console.error("Failed to restore backup", error);
+            ElMessage.error("Failed to restore backup");
         }
         dialogVisible.value = false;
     };
 </script>
 
 <template>
-    <el-dialog v-model="dialogVisible" title="恢复备份" width="500">
+    <el-dialog v-model="dialogVisible" title="Restore Backup" width="500">
         <div v-if="backups.length">
-            <p>从备份恢复您的Cursor设置、快捷键、扩展插件、代码片段</p>
-            <p style="color: #f56c6c; margin-top: 10px">注意：此操作将覆盖您当前Cursor的设置。并重启Cursor</p>
+            <p>Restore your Cursor settings, shortcuts, extensions, code snippets from backup</p>
+            <p style="color: #f56c6c; margin-top: 10px">Note: This operation will overwrite your current Cursor settings and restart Cursor</p>
         </div>
 
         <el-radio-group
@@ -110,14 +110,14 @@
         >
             <el-radio v-for="backup in backups" :key="backup.value" :value="backup.value">{{ backup.label }}</el-radio>
         </el-radio-group>
-        <p v-else style="margin-top: 5px; opacity: 0.6">当前暂无Cursor设置备份，请先备份</p>
+        <p v-else style="margin-top: 5px; opacity: 0.6">No Cursor settings backup available, please backup first</p>
         <p v-if="appConfig.originalMachineGuid" style="margin-top: 10px">
-            <el-checkbox v-model="isResetOriginalMachineGuid">同时恢复初始机器码MachineGuid</el-checkbox>
+            <el-checkbox v-model="isResetOriginalMachineGuid">Also restore initial machine code MachineGuid</el-checkbox>
         </p>
         <template #footer>
             <div class="dialog-footer">
-                <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="handleConfirm"> 确定 </el-button>
+                <el-button @click="dialogVisible = false">Cancel</el-button>
+                <el-button type="primary" @click="handleConfirm"> OK </el-button>
             </div>
         </template>
     </el-dialog>

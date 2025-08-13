@@ -6,13 +6,13 @@ import "element-plus/theme-chalk/el-message-box.css";
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import ElementPlus from "element-plus";
-import zhCn from "element-plus/es/locale/lang/zh-cn";
+import en from "element-plus/es/locale/lang/en";
 import App from "./App.vue";
 
 const app = createApp(App);
 
 app.use(createPinia());
 app.use(ElementPlus, {
-    locale: zhCn,
+    locale: en,
 });
 app.mount("#app");

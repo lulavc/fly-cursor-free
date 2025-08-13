@@ -33,7 +33,7 @@
     const closeWindow = () => window.api.closeWindow();
 
     const handleDoubleClick = (event) => {
-        // 确保双击事件不是来自控制按钮
+        // Ensure double-click event is not from control buttons
         if (event.target.closest(".window-controls")) {
             return;
         }

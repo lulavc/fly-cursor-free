@@ -1,6 +1,6 @@
 /**
  * @file src/renderer/src/api/cursor_api.js
- * @description Cursor 相关 API 封装
+ * @description Cursor related API encapsulation
  */
 
 // Request cache for better performance
@@ -16,10 +16,10 @@ const RETRY_CONFIG = {
 
 /**
  * Enhanced request function with caching, retry logic, and better error handling
- * @param {object} options - axios 请求配置对象 (method, url, data, params, headers 等)
+ * @param {object} options - axios request configuration object (method, url, data, params, headers, etc.)
  * @param {object} requestOptions - Additional options for request handling
- * @returns {Promise<any>} - 返回 API 的响应数据
- * @throws {Error} - 当 API 返回错误时，抛出一个带有错误信息的异常
+ * @returns {Promise<any>} - Returns API response data
+ * @throws {Error} - When API returns error, throws an exception with error information
  */
 async function request(options, requestOptions = {}) {
     const {
@@ -56,7 +56,7 @@ async function request(options, requestOptions = {}) {
                 return result;
             } else {
                 // Handle API errors
-                const error = new Error(response.error.message || "API 请求发生未知错误");
+                const error = new Error(response.error.message || "Unknown error occurred in API request");
                 error.data = response.error.data;
                 error.status = response.error.status;
                 error.code = response.error.code;
@@ -91,7 +91,7 @@ async function request(options, requestOptions = {}) {
     }
     
     // All retries failed
-    console.error("API请求异常:", lastError);
+    console.error("API request exception:", lastError);
     throw lastError;
 }
 
@@ -155,7 +155,7 @@ function validateToken(token) {
  */
 export const getStripeProfile = async (token) => {
     if (!validateToken(token)) {
-        throw new Error("无效的认证令牌");
+        throw new Error("Invalid authentication token");
     }
     
     const url = `https://www.cursor.com/api/auth/stripe`;
@@ -186,7 +186,7 @@ export const getStripeProfile = async (token) => {
  */
 export const getUsage = async (token) => {
     if (!validateToken(token)) {
-        throw new Error("无效的认证令牌");
+        throw new Error("Invalid authentication token");
     }
 
     const url = `https://www.${NAME_LOWER}.com/api/usage`;
@@ -231,7 +231,7 @@ export const getUsage = async (token) => {
             dataSource: 'cursor_api',
         };
     } catch (error) {
-        console.error("获取使用量信息失败:", error);
+        console.error("Failed to get usage information:", error);
         
         // Return default values on error
         return {
@@ -258,10 +258,10 @@ export const getCursorToken = async () => {
         if (cursorInfo && cursorInfo.token && validateToken(cursorInfo.token)) {
             return cursorInfo.token;
         } else {
-            throw new Error("无法获取有效的 Cursor 令牌");
+            throw new Error("Unable to get valid Cursor token");
         }
     } catch (error) {
-        console.error("获取 Cursor 令牌失败:", error);
+        console.error("Failed to get Cursor token:", error);
         throw error;
     }
 };
@@ -281,8 +281,8 @@ export const getCursorAccountInfo = async () => {
         ]);
 
         // Handle subscription info
-        let subscriptionType = "免费版";
-        let customerEmail = "未知";
+        let subscriptionType = "Free Version";
+        let customerEmail = "Unknown";
         let trialDaysRemaining = 0;
         
         if (subscriptionInfo.status === 'fulfilled' && subscriptionInfo.value) {
@@ -292,15 +292,15 @@ export const getCursorAccountInfo = async () => {
 
             if (status === "active") {
                 if (membership === "pro") {
-                    subscriptionType = "专业版";
+                    subscriptionType = "Professional Version";
                 } else if (membership === "free_trial") {
-                    subscriptionType = "免费试用";
+                    subscriptionType = "Free Trial";
                 } else if (membership === "pro_trial") {
-                    subscriptionType = "专业版试用";
+                    subscriptionType = "Professional Trial";
                 } else if (membership === "team") {
-                    subscriptionType = "团队版";
+                    subscriptionType = "Team Version";
                 } else if (membership === "enterprise") {
-                    subscriptionType = "企业版";
+                    subscriptionType = "Enterprise Version";
                 } else if (membership) {
                     subscriptionType = membership;
                 }
