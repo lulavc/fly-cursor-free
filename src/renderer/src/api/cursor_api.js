@@ -3,36 +3,126 @@
  * @description Cursor 相关 API 封装
  */
 
+// Request cache for better performance
+const requestCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Retry configuration
+const RETRY_CONFIG = {
+    maxRetries: 3,
+    retryDelay: 1000,
+    backoffMultiplier: 2,
+};
+
 /**
- * 通用的请求函数
+ * Enhanced request function with caching, retry logic, and better error handling
  * @param {object} options - axios 请求配置对象 (method, url, data, params, headers 等)
+ * @param {object} requestOptions - Additional options for request handling
  * @returns {Promise<any>} - 返回 API 的响应数据
  * @throws {Error} - 当 API 返回错误时，抛出一个带有错误信息的异常
  */
-async function request(options) {
-    try {
-        // 调用在 preload.js 中暴露的通用请求方法
-        const response = await window.api.request(options);
+async function request(options, requestOptions = {}) {
+    const {
+        useCache = false,
+        cacheKey = null,
+        retry = true,
+        maxRetries = RETRY_CONFIG.maxRetries,
+        retryDelay = RETRY_CONFIG.retryDelay,
+    } = requestOptions;
 
-        if (response.success) {
-            // 请求成功，返回 `data` 部分
-            return response.data;
-        } else {
-            // 请求失败，构造一个包含详细信息的 Error 对象并抛出
-            const error = new Error(response.error.message || "API 请求发生未知错误");
-            error.data = response.error.data; // 附加原始错误数据
-            error.status = response.error.status; // 附加 HTTP 状态码
-            error.code = response.error.code; // 附加错误代码
-            throw error;
+    // Check cache first if enabled
+    if (useCache && cacheKey) {
+        const cached = getCachedResponse(cacheKey);
+        if (cached) {
+            return cached;
         }
-    } catch (error) {
-        // 捕获并重新抛出网络错误或其他异常
-        console.error("API请求异常:", error);
-        throw error;
     }
+
+    let lastError;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            // Call the generic request method exposed in preload.js
+            const response = await window.api.request(options);
+
+            if (response.success) {
+                const result = response.data;
+                
+                // Cache successful response if enabled
+                if (useCache && cacheKey) {
+                    cacheResponse(cacheKey, result);
+                }
+                
+                return result;
+            } else {
+                // Handle API errors
+                const error = new Error(response.error.message || "API 请求发生未知错误");
+                error.data = response.error.data;
+                error.status = response.error.status;
+                error.code = response.error.code;
+                error.isApiError = true;
+                
+                // Don't retry on certain error types
+                if (response.error.status === 401 || response.error.status === 403) {
+                    throw error;
+                }
+                
+                throw error;
+            }
+        } catch (error) {
+            lastError = error;
+            
+            // Don't retry if it's the last attempt or if retry is disabled
+            if (attempt === maxRetries || !retry) {
+                break;
+            }
+            
+            // Don't retry on certain error types
+            if (error.status === 401 || error.status === 403 || error.status === 404) {
+                break;
+            }
+            
+            // Wait before retrying with exponential backoff
+            const delay = retryDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            console.warn(`Request failed, retrying... (attempt ${attempt + 1}/${maxRetries + 1})`);
+        }
+    }
+    
+    // All retries failed
+    console.error("API请求异常:", lastError);
+    throw lastError;
 }
 
-// 参考自 cursor_acc_info.py
+/**
+ * Cache management functions
+ */
+function getCachedResponse(key) {
+    const cached = requestCache.get(key);
+    if (!cached) return null;
+    
+    const now = Date.now();
+    if (now - cached.timestamp > CACHE_DURATION) {
+        requestCache.delete(key);
+        return null;
+    }
+    
+    return cached.data;
+}
+
+function cacheResponse(key, data) {
+    requestCache.set(key, {
+        data,
+        timestamp: Date.now()
+    });
+}
+
+function clearCache() {
+    requestCache.clear();
+}
+
+// Reference from cursor_acc_info.py
 const NAME_LOWER = "cursor";
 const NAME_CAPITALIZE = "Cursor";
 
@@ -44,38 +134,59 @@ const BASE_HEADERS = {
 };
 
 /**
- * 获取用户的 Stripe 订阅信息
- * 对应 python/cursor_acc_info.py -> UsageManager.get_stripe_profile
- * @param {string} token - 用户认证令牌
+ * Enhanced token validation
+ * @param {string} token - Token to validate
+ * @returns {boolean} - Whether token is valid
+ */
+function validateToken(token) {
+    if (!token || typeof token !== 'string') {
+        return false;
+    }
+    
+    // Basic JWT format validation
+    const jwtRegex = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]*$/;
+    return jwtRegex.test(token);
+}
+
+/**
+ * Get user's Stripe subscription information with enhanced error handling
+ * @param {string} token - User authentication token
  * @returns {Promise<any>}
  */
 export const getStripeProfile = async (token) => {
-    if (!token) {
-        throw new Error("认证令牌不能为空");
+    if (!validateToken(token)) {
+        throw new Error("无效的认证令牌");
     }
+    
     const url = `https://www.cursor.com/api/auth/stripe`;
     const headers = {
         ...BASE_HEADERS,
         Cookie: `Workos${NAME_CAPITALIZE}SessionToken=user_01OOOOOOOOOOOOOOOOOOOOOOOO%3A%3A${token}`,
     };
 
+    const cacheKey = `stripe_profile_${token.substring(0, 20)}`;
+    
     return request({
         method: "get",
         url: url,
         headers: headers,
-        timeout: 20000, // 10秒超时
+        timeout: 20000,
+    }, {
+        useCache: true,
+        cacheKey,
+        retry: true,
+        maxRetries: 2,
     });
 };
 
 /**
- * 获取用户的使用量信息
- * 对应 python/cursor_acc_info.py -> UsageManager.get_usage
- * @param {string} token - 用户认证令牌
+ * Get user usage information with enhanced error handling
+ * @param {string} token - User authentication token
  * @returns {Promise<object>}
  */
 export const getUsage = async (token) => {
-    if (!token) {
-        throw new Error("认证令牌不能为空");
+    if (!validateToken(token)) {
+        throw new Error("无效的认证令牌");
     }
 
     const url = `https://www.${NAME_LOWER}.com/api/usage`;
@@ -84,22 +195,29 @@ export const getUsage = async (token) => {
         Cookie: `Workos${NAME_CAPITALIZE}SessionToken=user_01OOOOOOOOOOOOOOOOOOOOOOOO%3A%3A${token}`,
     };
 
+    const cacheKey = `usage_${token.substring(0, 20)}`;
+
     try {
         const data = await request({
             method: "get",
             url: url,
             headers: headers,
-            timeout: 20000, // 10秒超时
+            timeout: 20000,
+        }, {
+            useCache: true,
+            cacheKey,
+            retry: true,
+            maxRetries: 2,
         });
 
         console.log("usage data", data);
 
-        // 格式化数据结构，确保返回一致的格式
+        // Enhanced data formatting with better error handling
         const gpt4_data = data["gpt-4"] || {};
+        const gpt35_data = data["gpt-3.5-turbo"] || {};
+        
         const numRequestsTotal = gpt4_data.numRequestsTotal || 0;
         const maxRequestUsage = "maxRequestUsage" in gpt4_data ? gpt4_data.maxRequestUsage : 999;
-
-        const gpt35_data = data["gpt-3.5-turbo"] || {};
         const maxRequestUsageBasic = gpt35_data.numRequestsTotal || 0;
 
         return {
@@ -108,26 +226,39 @@ export const getUsage = async (token) => {
             maxRequestUsage,
             maxRequestUsageBasic,
             numRequestsTotalBasic: "No Limit",
+            // Additional metadata
+            lastUpdated: new Date().toISOString(),
+            dataSource: 'cursor_api',
         };
     } catch (error) {
         console.error("获取使用量信息失败:", error);
-        throw error;
+        
+        // Return default values on error
+        return {
+            startOfMonth: new Date().toISOString(),
+            numRequestsTotal: 0,
+            maxRequestUsage: 999,
+            maxRequestUsageBasic: 0,
+            numRequestsTotalBasic: "No Limit",
+            error: error.message,
+            lastUpdated: new Date().toISOString(),
+            dataSource: 'cursor_api_error',
+        };
     }
 };
 
 /**
- * 获取当前系统中的 Cursor 令牌
- * @returns {Promise<string>} Cursor 访问令牌
+ * Get Cursor token from current system with enhanced error handling
+ * @returns {Promise<string>} Cursor access token
  */
 export const getCursorToken = async () => {
     try {
-        // 调用主进程获取 Cursor 信息
         const cursorInfo = await window.api.getCursorInfo();
 
-        if (cursorInfo && cursorInfo.token) {
+        if (cursorInfo && cursorInfo.token && validateToken(cursorInfo.token)) {
             return cursorInfo.token;
         } else {
-            throw new Error("无法获取 Cursor 令牌");
+            throw new Error("无法获取有效的 Cursor 令牌");
         }
     } catch (error) {
         console.error("获取 Cursor 令牌失败:", error);
@@ -136,23 +267,28 @@ export const getCursorToken = async () => {
 };
 
 /**
- * 获取当前用户的 Cursor 账号信息
- * 包含用户信息和使用情况
- * @returns {Promise<object>} 账号信息对象
+ * Get current user's Cursor account information with enhanced error handling
+ * @returns {Promise<object>} Account information object
  */
 export const getCursorAccountInfo = async () => {
     try {
-        // 获取 token
         const token = await getCursorToken();
 
-        // 并行获取订阅信息和使用情况
-        const [subscriptionInfo, usageInfo] = await Promise.all([getStripeProfile(token), getUsage(token)]);
+        // Parallel requests for better performance
+        const [subscriptionInfo, usageInfo] = await Promise.allSettled([
+            getStripeProfile(token),
+            getUsage(token)
+        ]);
 
-        // 格式化订阅类型
+        // Handle subscription info
         let subscriptionType = "免费版";
-        if (subscriptionInfo) {
-            const membership = subscriptionInfo.membershipType?.toLowerCase() || "";
-            const status = subscriptionInfo.subscriptionStatus?.toLowerCase() || "";
+        let customerEmail = "未知";
+        let trialDaysRemaining = 0;
+        
+        if (subscriptionInfo.status === 'fulfilled' && subscriptionInfo.value) {
+            const info = subscriptionInfo.value;
+            const membership = info.membershipType?.toLowerCase() || "";
+            const status = info.subscriptionStatus?.toLowerCase() || "";
 
             if (status === "active") {
                 if (membership === "pro") {
@@ -171,18 +307,25 @@ export const getCursorAccountInfo = async () => {
             } else if (status) {
                 subscriptionType = `${membership} (${status})`;
             }
+            
+            customerEmail = info?.customer?.email || "未知";
+            trialDaysRemaining = info?.daysRemainingOnTrial || 0;
         }
 
-        // 获取邮箱
-        const email = subscriptionInfo?.customer?.email || "未知";
+        // Handle usage info
+        const usage = usageInfo.status === 'fulfilled' ? usageInfo.value : {
+            numRequestsTotal: 0,
+            maxRequestUsage: 999,
+            error: usageInfo.reason?.message || "获取使用量失败"
+        };
 
-        // 返回完整信息
         return {
-            email,
+            email: customerEmail,
             subscriptionType,
-            usageInfo,
-            // 试用天数
-            trialDaysRemaining: subscriptionInfo?.daysRemainingOnTrial || 0,
+            usageInfo: usage,
+            trialDaysRemaining,
+            lastUpdated: new Date().toISOString(),
+            isActive: subscriptionInfo.status === 'fulfilled',
         };
     } catch (error) {
         console.error("获取账号信息失败:", error);
@@ -191,28 +334,33 @@ export const getCursorAccountInfo = async () => {
 };
 
 /**
- * 使用Session Token获取API访问令牌
- * @param {string} sessionToken - 会话令牌
- * @returns {Promise<object>} API访问令牌数据
- * @throws {Error} 当获取失败时抛出异常
+ * Get API access tokens using Session Token with enhanced error handling
+ * @param {string} sessionToken - Session token
+ * @returns {Promise<object>} API access token data
+ * @throws {Error} Throws exception when acquisition fails
  */
 export const getApiTokens = async (sessionToken) => {
-    if (!sessionToken) {
-        throw new Error("会话令牌不能为空");
+    if (!validateToken(sessionToken)) {
+        throw new Error("无效的会话令牌");
     }
 
     const url = "https://token.cursorpro.com.cn/reftoken";
     const headers = {
         ...BASE_HEADERS,
     };
+    
     try {
         const data = await request({
             method: "get",
             url: url,
             params: { token: sessionToken },
             headers: headers,
-            timeout: 20000, // 10秒超时
+            timeout: 20000,
+        }, {
+            retry: true,
+            maxRetries: 2,
         });
+        
         console.log("cursorpro data", data);
 
         if (data && data.code === 0) {
@@ -224,4 +372,21 @@ export const getApiTokens = async (sessionToken) => {
         console.error("获取API访问令牌失败:", error);
         throw error;
     }
+};
+
+/**
+ * Clear all cached responses
+ */
+export const clearApiCache = () => {
+    clearCache();
+};
+
+/**
+ * Get cache statistics
+ */
+export const getCacheStats = () => {
+    return {
+        size: requestCache.size,
+        keys: Array.from(requestCache.keys()),
+    };
 };
