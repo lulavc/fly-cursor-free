@@ -625,7 +625,7 @@
                                     </span>
                                 </p>
                                 <!-- <p class="card-item">
-                                    <span class="card-item-label">令牌时效:</span>
+                                    <span class="card-item-label">Token Expiration:</span>
                                     <span
                                         v-if="accountInfoShow.accessTokenExpStatus"
                                         size="small"
@@ -885,8 +885,8 @@
                                     <el-button @click="restoreBackup">Restore Backup</el-button>
                                 </p>
                                 <!-- <p class="card-item btn-item">
-                                    <span class="card-item-label">阻止更新</span>
-                                    <el-button @click="restoreBackup">阻止更新</el-button>
+                                    <span class="card-item-label">Block Updates</span>
+                                    <el-button @click="restoreBackup">Block Updates</el-button>
                                 </p> -->
                             </el-card>
                             <el-card class="log-card" style="">
@@ -919,10 +919,10 @@
                     <AccountManagement ref="accountManagementRef" @show-use-account-dialog="showUseAccountDialog" />
                 </div>
             </el-tab-pane>
-            <!-- <el-tab-pane label="功能" name="third">
+            <!-- <el-tab-pane label="Features" name="third">
                 <div class="body-card-item">
                     <el-scrollbar>
-                        <el-button type="primary" @click="register">注册</el-button>
+                        <el-button type="primary" @click="register">Register</el-button>
                     </el-scrollbar>
                 </div>
             </el-tab-pane> -->
