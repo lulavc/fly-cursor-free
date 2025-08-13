@@ -50,7 +50,7 @@
 
     const emit = defineEmits(["update:modelValue", "confirm"]);
 
-    // 然后使用函数形式监听
+    // Then use function form to listen
     watch(
         () => props.modelValue,
         (newVal) => {
