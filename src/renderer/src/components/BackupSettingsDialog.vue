@@ -30,36 +30,36 @@
 
     const handleConfirm = async () => {
         if (!appConfig.value.path_cursor_user_db) {
-            ElMessage.error("未找到Cursor文件路径！");
+            ElMessage.error("Cursor file path not found!");
             return;
         }
 
         try {
             let result = await window.api.backup();
             if (result.success === true) {
-                ElMessage.success("备份成功");
+                ElMessage.success("Backup successful");
             } else {
                 throw result.message;
             }
         } catch (error) {
-            console.error("备份失败", error);
-            ElMessage.error("备份失败");
+            console.error("Backup failed", error);
+            ElMessage.error("Backup failed");
         }
         dialogVisible.value = false;
     };
 </script>
 
 <template>
-    <el-dialog v-model="dialogVisible" title="备份Cursor设置" width="500">
+    <el-dialog v-model="dialogVisible" title="Backup Cursor Settings" width="500">
         <div>
-            <p>确定要备份您的Cursor吗？</p>
-            <p style="margin-top: 10px">包括Cursor设置、快捷键、扩展插件、代码片段</p>
-            <p style="margin-top: 10px">超过5个备份将自动删除旧备份</p>
+            <p>Are you sure you want to backup your Cursor?</p>
+            <p style="margin-top: 10px">Including Cursor settings, shortcuts, extensions, code snippets</p>
+            <p style="margin-top: 10px">More than 5 backups will automatically delete old backups</p>
         </div>
         <template #footer>
             <div class="dialog-footer">
-                <el-button @click="dialogVisible = false">取消</el-button>
-                <el-button type="primary" @click="handleConfirm"> 确定 </el-button>
+                <el-button @click="dialogVisible = false">Cancel</el-button>
+                <el-button type="primary" @click="handleConfirm"> OK </el-button>
             </div>
         </template>
     </el-dialog>

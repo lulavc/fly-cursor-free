@@ -10,16 +10,16 @@
 
     const appStore = useAppStore();
     const { cursorAccountsInfo } = storeToRefs(appStore);
-    // --- 响应式状态定义 ---
+    // --- Reactive State Definition ---
 
-    const allData = ref([]); // 从后端获取的所有数据
-    const loading = ref(true); // 加载状态，默认为true
-    const multipleSelection = ref([]); // 多选中的行
-    const rowLoadingState = ref({}); // 存储每行的加载状态，使用email作为键
-    const rowLoadingStateSessionToken = ref({}); // 存储每行的加载状态，使用email作为键
-    const isShowUpdateSessionTokenConst = false; // 是否显示更新会话令牌按钮
+    const allData = ref([]); // All data fetched from backend
+    const loading = ref(true); // Loading state, default true
+    const multipleSelection = ref([]); // Multi-selected rows
+    const rowLoadingState = ref({}); // Store loading state for each row, using email as key
+    const rowLoadingStateSessionToken = ref({}); // Store loading state for each row, using email as key
+    const isShowUpdateSessionTokenConst = false; // Whether to show update session token button
 
-    // 分页状态
+    // Pagination state
     const pagination = reactive({
         currentPage: 1,
         pageSize: 100,
@@ -27,26 +27,26 @@
     });
     const SUBSCRIBE_FREE_NAME = "free";
     const SUBSCRIBE_PRO_NAME = "free_trial";
-    // 排序状态
+    // Sort state
     const sortOptions = reactive({
         prop: "register_time",
-        order: "descending", // "ascending" 或 "descending"
+        order: "descending", // "ascending" or "descending"
     });
 
-    // 对话框与表单状态
+    // Dialog and form state
     const dialogVisible = ref(false);
     const formRef = ref(null);
     const accountForm = ref({
         email: "",
         accessToken: "",
-        // ... 其他字段可以按需添加
+        // ... Other fields can be added as needed
     });
     const formRules = {
-        email: [{ required: true, message: "请输入邮箱地址", trigger: "blur" }],
-        accessToken: [{ required: true, message: "请输入token", trigger: "blur" }],
+        email: [{ required: true, message: "Please enter email address", trigger: "blur" }],
+        accessToken: [{ required: true, message: "Please enter token", trigger: "blur" }],
     };
 
-    // 进度条状态
+    // Progress bar state
     const progressState = reactive({
         visible: false,
         title: "",
@@ -60,11 +60,11 @@
         progressState.handleId = null;
     };
 
-    // --- 计算属性 ---
+    // --- Computed Properties ---
 
-    // 分页布局
+    // Pagination layout
     const paginationLayout = computed(() => {
-        // 当总条目数不大于每页大小时（即只有一页或没有数据），只显示总数和每页条数选择
+        // When total entries are not greater than page size (i.e., only one page or no data), only show total and page size selection
         if (pagination.total < 11) {
             return "total";
         }
@@ -76,7 +76,7 @@
         const totalPages = Math.ceil(pagination.total / pagination.pageSize);
         let baseLayout = "total, sizes, prev, pager, next";
 
-        // 如果总页数大于7，则添加跳转控件
+        // If total pages is greater than 7, add jump control
         if (totalPages > 7) {
             return baseLayout + ", jumper";
         }
@@ -84,7 +84,7 @@
         return baseLayout;
     });
 
-    // 将 progressState.status 映射到 el-progress 的 status
+    // Map progressState.status to el-progress status
     const progressStatus = computed(() => {
         switch (progressState.status) {
             case "finished":
@@ -94,26 +94,26 @@
             case "warning":
                 return "warning";
             default:
-                return ""; // el-progress status 为空字符串时，显示默认主题色
+                return ""; // When el-progress status is empty string, show default theme color
         }
     });
 
-    // --- 生命周期钩子 ---
+    // --- Lifecycle Hooks ---
 
     let cleanupMainProcessListener = null;
 
     onMounted(() => {
         // fetchAccounts();
-        // 监听主进程的消息，用于更新进度
+        // Listen to main process messages for progress updates
         cleanupMainProcessListener = window.api.onMainProcessMessage((eventData) => {
-            // 检查是否是进度消息，并且handleId匹配当前操作
+            // Check if it's a progress message and handleId matches current operation
             if (eventData.type === "progress" && eventData.handleId === progressState.handleId) {
                 progressState.percentage =
                     eventData.total > 0 ? Math.round((eventData.processed / eventData.total) * 100) : 0;
                 progressState.message = eventData.message;
                 progressState.status = eventData.status;
                 if (eventData.status === "finished" || eventData.status === "error") {
-                    // 进度完成后由用户手动关闭
+                    // Progress completed, user manually closes
                 }
             }
         });
@@ -125,7 +125,7 @@
         }
     });
 
-    // --- 工具函数 ---
+    // --- Utility Functions ---
 
     const getTokenExpTimestamp = (inputString) => {
         if (typeof inputString !== "string") {
@@ -143,13 +143,13 @@
                 return decodedToken.exp * 1000;
             }
         } catch {
-            // 解码失败，不是有效的JWT，继续尝试下一个
+            // Decoding failed, not a valid JWT, continue to next
             console.warn("JWT decoding failed for a token, continuing...");
         }
         return null;
     };
 
-    // 获取真实的token
+    // Get real token
     const getRealAccessToken = (inputString) => {
         if (typeof inputString !== "string") {
             return "";
@@ -163,7 +163,7 @@
     const formatExpTimestamp = (expTimestamp) => {
         if (!expTimestamp) {
             return {
-                label: "无令牌",
+                label: "No Token",
                 type: "danger",
                 isExpired: true,
             };
@@ -171,7 +171,7 @@
         const now = Date.now();
         if (expTimestamp < now) {
             return {
-                label: "已过期",
+                label: "Expired",
                 type: "danger",
                 isExpired: true,
             };
@@ -182,7 +182,7 @@
         const days = Math.floor(remainingMilliseconds / (1000 * 60 * 60 * 24));
         if (days > 0) {
             return {
-                label: `${days}天`,
+                label: `${days} days`,
                 type: "success",
                 isExpired: false,
             };
@@ -191,48 +191,48 @@
         const hours = Math.floor(remainingMilliseconds / (1000 * 60 * 60));
         if (hours > 0) {
             return {
-                label: `${hours}小时`,
+                label: `${hours} hours`,
                 type: "warning",
                 isExpired: false,
             };
         }
 
-        // 小于一小时，显示分钟。向上取整以避免显示0分钟。
+        // Less than one hour, show minutes. Round up to avoid showing 0 minutes.
         const minutes = Math.ceil(remainingMilliseconds / (1000 * 60));
         return {
-            label: `${minutes}分钟`,
+            label: `${minutes} minutes`,
             type: "danger",
             isExpired: false,
         };
     };
 
     /**
-     * 计算剩余天数
-     * @param {string} registerTime - 格式为 "YYYY-MM-DD HH:MM:SS" 的注册时间
-     * @returns {number} 剩余天数
+     * Calculate remaining days
+     * @param {string} registerTime - Registration time in format "YYYY-MM-DD HH:MM:SS"
+     * @returns {number} Remaining days
      */
     const calculateRemainingDays = (registerTime) => {
         if (!registerTime) return 0;
         const now = new Date();
         const registerDate = new Date(registerTime);
-        // 15天后过期
+        // Expires after 15 days
         const expiryDate = new Date(new Date(registerTime).setDate(registerDate.getDate() + 15));
 
-        // 如果已过期，返回0
+        // If expired, return 0
         if (now > expiryDate) {
             return 0;
         }
 
-        // 计算剩余毫秒数并转换为天数
+        // Calculate remaining milliseconds and convert to days
         const remainingMilliseconds = expiryDate - now;
         const remainingDays = Math.ceil(remainingMilliseconds / (1000 * 60 * 60 * 24));
         return remainingDays;
     };
 
     /**
-     * 格式化时间戳
-     * @param {number} timestamp - 时间戳 (毫秒)
-     * @returns {string|null} 格式化后的日期时间字符串 "YYYY-MM-DD HH:MM:SS" 或 null
+     * Format timestamp
+     * @param {number} timestamp - Timestamp (milliseconds)
+     * @returns {string|null} Formatted date time string "YYYY-MM-DD HH:MM:SS" or null
      */
     const formatTimestamp = (timestamp) => {
         if (!timestamp) {
@@ -248,33 +248,33 @@
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
     };
 
-    // --- 数据获取与处理 ---
+    // --- Data Fetching and Processing ---
 
-    // 从后端获取账户列表
+    // Fetch account list from backend
     const fetchAccounts = async () => {
         loading.value = true;
         try {
-            // 确保数据库目录存在
+            // Ensure database directory exists
             await window.api.accounts.ensureDatabaseDirectoryExists();
             const sortOrder = sortOptions.order === "ascending" ? "ASC" : "DESC";
             const { accounts, total } = await window.api.accounts.listAccounts({
                 sortByRegisterTime: sortOrder,
                 page: pagination.currentPage,
                 pageSize: pagination.pageSize,
-            }); //DESC 降序 | ASC 升序
+            }); //DESC descending | ASC ascending
 
             pagination.total = total;
 
-            // 最佳实践：检查当前页是否仍然有效
+            // Best practice: Check if current page is still valid
             const totalPages = Math.ceil(pagination.total / pagination.pageSize);
             if (pagination.currentPage > 1 && pagination.currentPage > totalPages) {
-                // 如果当前页码超过了新的总页数（并且不是第一页），则自动跳转到最后一页并重新获取数据
+                // If current page number exceeds new total pages (and not first page), automatically jump to last page and refetch data
                 pagination.currentPage = totalPages > 0 ? totalPages : 1;
-                await fetchAccounts(); // 重新调用以获取最后一页的数据
-                return; // 终止当前函数的执行，因为数据将由新的调用来填充
+                await fetchAccounts(); // Re-call to get last page data
+                return; // Terminate current function execution, as data will be filled by new call
             }
 
-            // 保存之前的loading状态
+            // Save previous loading state
             // const previousLoadingState = { ...rowLoadingState.value };
 
             const now = Date.now();
@@ -287,9 +287,9 @@
                 }
                 let membershipTypeShow;
                 if (acc.membershipType === SUBSCRIBE_FREE_NAME) {
-                    membershipTypeShow = "已失效";
+                    membershipTypeShow = "Expired";
                 } else if (acc.membershipType === SUBSCRIBE_PRO_NAME) {
-                    membershipTypeShow = remainingDays + "天试用";
+                    membershipTypeShow = remainingDays + " days trial";
                 } else if (acc.membershipType) {
                     membershipTypeShow = acc.membershipType;
                     remainingDays = 999;
@@ -297,7 +297,7 @@
                     membershipTypeShow = "";
                     remainingDays = 999;
                 }
-                //accessToken 优先级高于 WorkosCursorSessionToken
+                //accessToken has higher priority than WorkosCursorSessionToken
                 const expTimeAccessToken = getTokenExpTimestamp(acc.accessToken);
                 const expTimeSessionToken = getTokenExpTimestamp(acc.WorkosCursorSessionToken);
 
@@ -798,7 +798,7 @@
                                 type="primary"
                                 :loading="rowLoadingStateSessionToken[scope.row.email]"
                                 @click="handleUpdateSessionToken(scope.row)"
-                                >刷新60天令牌
+                                >Refresh 60-day Token
                             </el-button>
                         </template>
 
@@ -808,9 +808,9 @@
                             </el-button>
                             <template #dropdown>
                                 <el-dropdown-menu>
-                                    <el-dropdown-item @click="handleEdit(scope.row)"> 编辑 </el-dropdown-item>
+                                    <el-dropdown-item @click="handleEdit(scope.row)"> Edit </el-dropdown-item>
                                     <el-dropdown-item style="color: #f56c6c" @click="handleDelete(scope.row)">
-                                        删除
+                                        Delete
                                     </el-dropdown-item>
                                 </el-dropdown-menu>
                             </template>
@@ -820,15 +820,15 @@
             </el-table>
         </div>
         <div class="footer">
-            <!-- 功能操作区 -->
+            <!-- Function Operation Area -->
             <div class="toolbar">
-                <el-button type="success" size="small" plain @click="handleAdd">新增账号</el-button>
-                <el-button type="danger" size="small" plain @click="handleDeleteBatch">批量删除</el-button>
-                <el-button type="success" size="small" plain @click="handleImport">导入</el-button>
-                <el-button type="warning" size="small" plain @click="handleExport">导出</el-button>
+                <el-button type="success" size="small" plain @click="handleAdd">Add Account</el-button>
+                <el-button type="danger" size="small" plain @click="handleDeleteBatch">Batch Delete</el-button>
+                <el-button type="success" size="small" plain @click="handleImport">Import</el-button>
+                <el-button type="warning" size="small" plain @click="handleExport">Export</el-button>
             </div>
 
-            <!-- 分页控制区 -->
+            <!-- Pagination Control Area -->
             <div v-if="pagination.total > 0" class="pagination-container">
                 <el-pagination
                     v-model:current-page="pagination.currentPage"
@@ -843,32 +843,32 @@
             </div>
         </div>
 
-        <!-- 新增/编辑对话框 -->
-        <el-dialog v-model="dialogVisible" title="新增账号" width="500px">
+        <!-- Add/Edit Dialog -->
+        <el-dialog v-model="dialogVisible" title="Add Account" width="500px">
             <el-form ref="formRef" :model="accountForm" :rules="formRules" label-width="80px">
-                <el-form-item label="邮箱" prop="email">
-                    <el-input v-model="accountForm.email" placeholder="请输入邮箱地址" />
+                <el-form-item label="Email" prop="email">
+                    <el-input v-model="accountForm.email" placeholder="Please enter email address" />
                 </el-form-item>
-                <el-form-item label="token" prop="accessToken">
+                <el-form-item label="Token" prop="accessToken">
                     <el-input
                         v-model="accountForm.accessToken"
                         type="textarea"
                         :rows="5"
-                        placeholder="请输入 accessToken 或 WorkosCursorSessionToken"
+                        placeholder="Please enter accessToken or WorkosCursorSessionToken"
                     />
                 </el-form-item>
-                <!-- 更多字段可以根据需要添加 -->
+                <!-- More fields can be added as needed -->
             </el-form>
             <template #footer>
                 <span class="dialog-footer">
-                    <!-- <el-button @click="importCurrentLoginAccount">添加当前Cursor登录账号</el-button> -->
-                    <el-button @click="dialogVisible = false">取消</el-button>
-                    <el-button type="primary" @click="submitForm">确定</el-button>
+                    <!-- <el-button @click="importCurrentLoginAccount">Add current Cursor login account</el-button> -->
+                    <el-button @click="dialogVisible = false">Cancel</el-button>
+                    <el-button type="primary" @click="submitForm">OK</el-button>
                 </span>
             </template>
         </el-dialog>
 
-        <!-- 进度条对话框 -->
+        <!-- Progress Bar Dialog -->
         <el-dialog
             v-model="progressState.visible"
             :title="progressState.title"

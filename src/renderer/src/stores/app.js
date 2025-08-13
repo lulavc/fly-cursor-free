@@ -36,7 +36,7 @@ export const useAppStore = defineStore("app", {
         isAutoLoginFlow: false,
 
         appLicenseInfo: {
-            status: 3, // 0: 正常  1:服务器错误 2: 许可证过期或验证失败 3: 未找到许可证  11: 需要升级APP版本  12: 用户被封禁
+            status: 3, // 0: Normal  1: Server error  2: License expired or verification failed  3: License not found  11: Need to upgrade APP version  12: User banned
             message: "",
             license: null,
             signature: null,
@@ -195,17 +195,17 @@ export const useAppStore = defineStore("app", {
                 case 0:
                     return true;
                 case 1:
-                    this.showLicenseError("连接服务器失败", "服务器错误", "warning");
+                    this.showLicenseError("Failed to connect to server", "Server Error", "warning");
                     return false;
                 case 2:
                 case 3:
-                    this.showLicenseError(message || "未获得权限", "权限验证失败", "warning");
+                    this.showLicenseError(message || "No permission obtained", "Permission Verification Failed", "warning");
                     return false;
                 case 11:
-                    this.showLicenseError(message || "需要升级APP版本", "升级提示", "warning");
+                    this.showLicenseError(message || "Need to upgrade APP version", "Upgrade Notice", "warning");
                     return false;
                 case 12:
-                    this.showLicenseError(message || "用户已被封禁", "封禁提示", "error");
+                    this.showLicenseError(message || "User has been banned", "Ban Notice", "error");
                     return false;
                 default:
                     console.warn(`Unknown license status: ${status}`);
@@ -216,7 +216,7 @@ export const useAppStore = defineStore("app", {
         // Helper method for showing license errors
         showLicenseError(message, title, type = "warning") {
             ElMessageBox.confirm(message, title, {
-                confirmButtonText: "确定",
+                confirmButtonText: "OK",
                 showCancelButton: false,
                 type: type,
             }).catch(() => {
